@@ -54,6 +54,7 @@ void MX_ENC26J60_COM_Prepare(void);
 void MX_ENC26J60_COM_Xray(void);
 void MX_ENC26J60_COM_Cancel(void);
 
+void MAIN_FatalError(void);
 /* ------------------------------------------------------ */
 
 #define SETTINGS_SIZE 		24
@@ -75,6 +76,13 @@ uint16_t ADC1_DMA_BUFFER [VOLTAGE_SIZE*VOLTAGE_MULTI];
 uint16_t ADC2_DMA_BUFFER [CURRENT_SIZE];
 uint16_t ADC3_DMA_BUFFER [MEASURE_SIZE];
 
+uint32_t MODE_COUNT, MODE_PULSE;
+uint16_t MODE_PERIOD, MODE_NAKAL, MODE_KV;
+/* ------------------------------------------------------ */
+//0 - Puskatel
+//1 - Semister
+uint8_t ExpectedStatus[2];
+uint8_t ValidStatus[2];
 /* ------------------------------------------------------ */
 
 extern uint8_t ipaddr[4];
@@ -115,6 +123,10 @@ void MX_MAIN_StartupInit(void)
 		
 	MX_FLASH_LoadSettings(); MX_FLASH_LoadIP(); MX_ENC28J60_Init(); osDelay(333);
 	HAL_GPIO_WritePin(GPIOD,GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3,GPIO_PIN_RESET);
+	
+	HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_SET); osDelay(20); 
+	HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_RESET); 
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_10,GPIO_PIN_RESET);
 }
 
 
@@ -181,6 +193,12 @@ void MX_ENC26J60_COM_Unknown(void) {
 
 
 void MX_ENC26J60_COM_ChangeIP(void) {
+	uint8_t WRITE_BUFFER[6];
+	WRITE_BUFFER[0] = READ_BUFFER[DATA_START]; 
+	WRITE_BUFFER[2] = ipaddr[0]; WRITE_BUFFER[3] = ipaddr[1];
+	WRITE_BUFFER[4] = ipaddr[2]; WRITE_BUFFER[5] = ipaddr[3];
+	WRITE_BUFFER[1] = MX_ENC26J60_Checksum(WRITE_BUFFER, sizeof(WRITE_BUFFER),0);
+	tcp_server_reply(READ_BUFFER, tcp_fill_data(READ_BUFFER, WRITE_BUFFER, sizeof(WRITE_BUFFER)));
 }
 
 
@@ -195,6 +213,8 @@ void MX_ENC26J60_COM_Power(void) {
 		HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_SET); osDelay(20); 
 		HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_RESET);
 	}	MX_ENC26J60_SendReply(3);
+	
+	//Время заряда?
 }
 
 
@@ -242,12 +262,66 @@ void MX_ENC26J60_COM_Save(void) {
 
 
 void MX_ENC26J60_COM_Prepare(void) {
+	uint8_t WRITE_BUFFER[3];
+	WRITE_BUFFER[0] = READ_BUFFER[DATA_START]; 
+	WRITE_BUFFER[2] = 0xFF; 
+	
+	MODE_PULSE = SETTINGS[14] * 216 / 1000;
+	MODE_PERIOD = SETTINGS[15] * 216 / 1000;
+	
+	MODE_NAKAL = (READ_BUFFER[DATA_START+2] << 8) + READ_BUFFER[DATA_START+3];
+	
+	MODE_KV = (READ_BUFFER[DATA_START+4] << 8) + READ_BUFFER[DATA_START+5];
+	
+	MODE_COUNT = ((READ_BUFFER[DATA_START+6] << 8) + READ_BUFFER[DATA_START+7]) * 1000000 / SETTINGS[16];//16 - ?
+	
+	HAL_ADC_Start_DMA(&hadc2, (uint32_t*)ADC2_DMA_BUFFER, sizeof(ADC2_DMA_BUFFER)/2); //__HAL_DMA_DISABLE_IT(&hdma_adc2,DMA_IT_TC);	
+	__HAL_DMA_DISABLE_IT(&hdma_adc2,DMA_IT_HT); __HAL_DMA_DISABLE_IT(&hdma_adc2,DMA_IT_TE); 
+	__HAL_DMA_DISABLE_IT(&hdma_adc2,DMA_IT_DME); __HAL_DMA_DISABLE_IT(&hdma_adc2,DMA_IT_FE);
+	HAL_ADC_Start_DMA(&hadc3, (uint32_t*)ADC3_DMA_BUFFER, sizeof(ADC3_DMA_BUFFER)/2); //__HAL_DMA_DISABLE_IT(&hdma_adc3,DMA_IT_TC);		
+	__HAL_DMA_DISABLE_IT(&hdma_adc3,DMA_IT_HT); __HAL_DMA_DISABLE_IT(&hdma_adc3,DMA_IT_TE); 
+	__HAL_DMA_DISABLE_IT(&hdma_adc3,DMA_IT_DME); __HAL_DMA_DISABLE_IT(&hdma_adc3,DMA_IT_FE);
+	
+	WRITE_BUFFER[1] = MX_ENC26J60_Checksum(WRITE_BUFFER, sizeof(WRITE_BUFFER),0); 
+	tcp_server_reply(READ_BUFFER, tcp_fill_data(READ_BUFFER, WRITE_BUFFER, sizeof(WRITE_BUFFER)));
 }
 
 
 void MX_ENC26J60_COM_Xray(void) {
+	uint8_t WRITE_BUFFER[3];
+	WRITE_BUFFER[0] = READ_BUFFER[DATA_START];
+	WRITE_BUFFER[2] = 0xFF; 	
+	
+	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R, MODE_KV*21.39165); 
+	HAL_DAC_Start(&hdac,DAC_CHANNEL_1);
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_6, GPIO_PIN_SET);
+	TIM11->ARR = MODE_PERIOD; TIM11->CCR1 = MODE_PULSE; TIM11->CNT = 0;
+	__HAL_TIM_ENABLE_IT(&htim11, TIM_IT_CC1); __HAL_TIM_ENABLE(&htim11);
+	
+	__HAL_TIM_ENABLE(&htim8); 
+	__HAL_TIM_ENABLE(&htim6);
+	
+	WRITE_BUFFER[1] = MX_ENC26J60_Checksum(WRITE_BUFFER, sizeof(WRITE_BUFFER),1); 
+	tcp_server_reply(READ_BUFFER, tcp_fill_data(READ_BUFFER, WRITE_BUFFER, sizeof(WRITE_BUFFER)));
 }
 
 
 void MX_ENC26J60_COM_Cancel(void) {
+	uint8_t WRITE_BUFFER[3];
+	WRITE_BUFFER[0] = READ_BUFFER[DATA_START]; 
+	WRITE_BUFFER[2] = 0xFF; 
+
+	HAL_DAC_SetValue(&hdac,DAC_CHANNEL_1,DAC_ALIGN_12B_R,0); HAL_DAC_Start(&hdac,DAC_CHANNEL_1);	
+		
+	WRITE_BUFFER[1] = MX_ENC26J60_Checksum(WRITE_BUFFER, sizeof(WRITE_BUFFER),0); 
+	tcp_server_reply(READ_BUFFER, tcp_fill_data(READ_BUFFER, WRITE_BUFFER, sizeof(WRITE_BUFFER)));
+}
+
+void MAIN_FatalError(void){
+	HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_SET); osDelay(20); 
+	HAL_GPIO_WritePin(GPIOD,GPIO_PIN_9,GPIO_PIN_RESET); 
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_10,GPIO_PIN_RESET);
+	
+	WRITE_BUFFER[0] = 0x88; WRITE_BUFFER[1] = 0x88; WRITE_BUFFER[2] = 0x88;
+	MX_ENC26J60_SendReply(3);
 }

@@ -59,7 +59,6 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -80,7 +79,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -106,7 +104,7 @@ int main(void)
   MX_TIM11_Init();
 
   /* USER CODE BEGIN 2 */
-
+	
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */

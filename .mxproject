@@ -1,7 +1,7 @@
 [PreviousGenFiles]
-HeaderPath=G:/Projects/Klio HiVoltage 3.5/HiVoltage_F745_STM32/Inc
+HeaderPath=C:/Users/iDobro/Desktop/Работа на седне/!!!New_PWM/HiVoltage_F745_STM32/Inc
 HeaderFiles=gpio.h;dma.h;FreeRTOSConfig.h;spi.h;stm32f7xx_it.h;stm32f7xx_hal_conf.h;main.h;adc.h;dac.h;tim.h;
-SourcePath=G:/Projects/Klio HiVoltage 3.5/HiVoltage_F745_STM32/Src
+SourcePath=C:/Users/iDobro/Desktop/Работа на седне/!!!New_PWM/HiVoltage_F745_STM32/Src
 SourceFiles=gpio.h;dma.h;FreeRTOSConfig.h;spi.h;stm32f7xx_it.h;stm32f7xx_hal_conf.h;main.h;gpio.c;dma.c;freertos.c;spi.c;stm32f7xx_it.c;stm32f7xx_hal_msp.c;stm32f7xx_hal_timebase_TIM.c;main.c;adc.h;dac.h;tim.h;adc.c;dac.c;tim.c;
 
 [PreviousLibFiles]
