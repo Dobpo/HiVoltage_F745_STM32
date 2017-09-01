@@ -5,18 +5,41 @@
 extern SPI_HandleTypeDef hspi1;
 void (*icmp_callback)(uint8_t *ip);
 
+uint8_t encBank;
+uint8_t seqnum = 0xa;
 uint16_t gNextPacketPtr;
 uint16_t info_data_len = 0;
 
-uint8_t encBank;
-uint8_t seqnum = 0xa;
-uint8_t ipaddr[4]; // = {192,168,0,222};
-uint8_t macaddr[6] = {0x00,0x07,0x05,0x19,0x85,0x00};
+#define FLASH_IP_SIZE 		4
+#define FLASH_MAC_SIZE 		6
+extern uint8_t FLASH_IPADDR[FLASH_IP_SIZE];
+extern uint8_t FLASH_MACADDR[FLASH_MAC_SIZE];
 
-uint8_t tmp_buffer[1500];
+#define TCP_BUFFER_SIZE 			1500
+uint8_t tmp_buffer[TCP_BUFFER_SIZE];
 
 #define enableChip 				GPIOB->BSRR = GPIO_PIN_6 << 16;
 #define disableChip 			GPIOB->BSRR = GPIO_PIN_6;
+
+
+//uint8_t enc28j60SendByte(uint8_t data) {
+//	uint8_t value;
+//	HAL_SPI_TransmitReceive(&hspi1, &data, &value, 1, 1);
+//	return value;
+//}
+
+//void enc28j60ReadBuffer (uint16_t len, uint8_t* data) {
+//    enableChip;
+//    enc28j60SendByte(ENC28J60_READ_BUF_MEM);
+//    while (len--) *data++ = enc28j60SendByte(0x00);
+//    disableChip;
+//}
+//void enc28j60WriteBuffer (uint16_t len, uint8_t* data) {
+//    enableChip;
+//    enc28j60SendByte(ENC28J60_WRITE_BUF_MEM);
+//    while (len--) enc28j60SendByte(*data++);
+//    disableChip;
+//}
 
 uint8_t enc28j60SendByte(uint8_t data) {
 	HAL_SPI_TransmitReceive(&hspi1, &data, &tmp_buffer[0], 1, 1);
@@ -148,12 +171,12 @@ void MX_ENC28J60_Init(void) {
 	enc28j60WriteWord(MAIPGL, 0x0C12);
 	enc28j60Write(MABBIPG, 0x12);
 	enc28j60WriteWord(MAMXFLL, MAX_FRAMELEN);
-	enc28j60Write(MAADR5, macaddr[0]);
-	enc28j60Write(MAADR4, macaddr[1]);
-	enc28j60Write(MAADR3, macaddr[2]);
-	enc28j60Write(MAADR2, macaddr[3]);
-	enc28j60Write(MAADR1, macaddr[4]);
-	enc28j60Write(MAADR0, macaddr[5]);
+	enc28j60Write(MAADR5, FLASH_MACADDR[0]);
+	enc28j60Write(MAADR4, FLASH_MACADDR[1]);
+	enc28j60Write(MAADR3, FLASH_MACADDR[2]);
+	enc28j60Write(MAADR2, FLASH_MACADDR[3]);
+	enc28j60Write(MAADR1, FLASH_MACADDR[4]);
+	enc28j60Write(MAADR0, FLASH_MACADDR[5]);
 	enc28j60PhyWrite(PHCON2, PHCON2_HDLDIS);
 	enc28j60SetBank(ECON1);
 	enc28j60WriteOp(ENC28J60_BIT_FIELD_SET, EIE, EIE_INTIE | EIE_PKTIE);
@@ -182,7 +205,7 @@ uint8_t eth_type_is_arp_and_my_ip (uint8_t *buf, uint16_t len) {
 	if (len < 41) return(0);
 	if (buf[ETH_TYPE_H_P] != ETHTYPE_ARP_H_V ||	buf[ETH_TYPE_L_P] != ETHTYPE_ARP_L_V) return(0);
 	while (i < 4) {
-		if (buf[ETH_ARP_DST_IP_P+i] != ipaddr[i]) return(0);
+		if (buf[ETH_ARP_DST_IP_P+i] != FLASH_IPADDR[i]) return(0);
 		i++;
 	}
 	return(1);
@@ -194,7 +217,7 @@ uint8_t eth_type_is_ip_and_my_ip (uint8_t *buf, uint16_t len) {
 	if (buf[ETH_TYPE_H_P] != ETHTYPE_IP_H_V || buf[ETH_TYPE_L_P] != ETHTYPE_IP_L_V) return(0);
 	if (buf[IP_HEADER_LEN_VER_P] != 0x45) return(0);
 	while (i < 4) {
-		if (buf[IP_DST_P+i] != ipaddr[i]) return(0);
+		if (buf[IP_DST_P+i] != FLASH_IPADDR[i]) return(0);
 		i++;
 	}
 	return(1);
@@ -204,7 +227,7 @@ void make_eth (uint8_t *buf) {
 	uint8_t i = 0;
 	while (i < 6) {
 		buf[ETH_DST_MAC+i] = buf[ETH_SRC_MAC + i];
-		buf[ETH_SRC_MAC+i] = macaddr[i]; i++;
+		buf[ETH_SRC_MAC+i] = FLASH_MACADDR[i]; i++;
 	}
 }
 
@@ -224,7 +247,7 @@ void make_ip (uint8_t *buf) {
 	uint8_t i = 0;
 	while (i < 4) {
 		buf[IP_DST_P+i] = buf[IP_SRC_P+i];
-		buf[IP_SRC_P+i] = ipaddr[i]; i++;
+		buf[IP_SRC_P+i] = FLASH_IPADDR[i]; i++;
 	}
 	fill_ip_hdr_checksum(buf);
 }
@@ -266,12 +289,12 @@ void make_arp_answer_from_request (uint8_t *buf) {
 	buf[ETH_ARP_OPCODE_L_P] = ETH_ARP_OPCODE_REPLY_L_V;
 	while (i < 6) {
 		buf[ETH_ARP_DST_MAC_P+i] = buf[ETH_ARP_SRC_MAC_P+i];
-		buf[ETH_ARP_SRC_MAC_P+i] = macaddr[i]; i++;
+		buf[ETH_ARP_SRC_MAC_P+i] = FLASH_MACADDR[i]; i++;
 	}
 	i = 0;
 	while (i < 4) {
 		buf[ETH_ARP_DST_IP_P+i] = buf[ETH_ARP_SRC_IP_P+i];
-		buf[ETH_ARP_SRC_IP_P+i] = ipaddr[i]; i++;
+		buf[ETH_ARP_SRC_IP_P+i] = FLASH_IPADDR[i]; i++;
 	}
 	enc28j60PacketSend(42,buf);
 }

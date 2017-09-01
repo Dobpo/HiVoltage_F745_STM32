@@ -3,6 +3,11 @@
   * File Name          : freertos.c
   * Description        : Code for freertos applications
   ******************************************************************************
+  * This notice applies to any and all portions of this file
+  * that are not between comment pairs USER CODE BEGIN and
+  * USER CODE END. Other portions of this file, whether 
+  * inserted by the user or by software development tools
+  * are owned by their respective copyright owners.
   *
   * Copyright (c) 2017 STMicroelectronics International N.V. 
   * All rights reserved.
@@ -52,7 +57,7 @@
 
 /* Variables -----------------------------------------------------------------*/
 osThreadId defaultTaskHandle;
-osThreadId refreshTaskHandle;
+osThreadId statusTaskHandle;
 
 /* USER CODE BEGIN Variables */
 
@@ -60,14 +65,14 @@ osThreadId refreshTaskHandle;
 
 /* Function prototypes -------------------------------------------------------*/
 void StartDefaultTask(void const * argument);
-void StartRefreshTask(void const * argument);
+void StartStatusTask(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* USER CODE BEGIN FunctionPrototypes */
-extern void MX_MAIN_StartupInit(void);
-extern void MX_MAIN_CheckPackets(void);
-extern void MX_MAIN_CalculateValues(void);
+extern void USER_MAIN_StartupInit(void);
+extern void USER_MAIN_CalculateValues(void);
+extern void USER_MAIN_ENC26J60_CheckPackets(void);
 /* USER CODE END FunctionPrototypes */
 
 /* Hook prototypes */
@@ -96,9 +101,9 @@ void MX_FREERTOS_Init(void) {
   osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
-  /* definition and creation of refreshTask */
-  osThreadDef(refreshTask, StartRefreshTask, osPriorityIdle, 0, 128);
-  refreshTaskHandle = osThreadCreate(osThread(refreshTask), NULL);
+  /* definition and creation of statusTask */
+  osThreadDef(statusTask, StartStatusTask, osPriorityIdle, 0, 128);
+  statusTaskHandle = osThreadCreate(osThread(statusTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -115,25 +120,26 @@ void StartDefaultTask(void const * argument)
 
   /* USER CODE BEGIN StartDefaultTask */
   /* Infinite loop */
-	MX_MAIN_StartupInit();
-  for(;;) {
-		MX_MAIN_CheckPackets();
-		osDelay(1);
+	USER_MAIN_StartupInit();
+  for(;;)
+  {
+		USER_MAIN_ENC26J60_CheckPackets();
+    osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
 }
 
-/* StartRefreshTask function */
-void StartRefreshTask(void const * argument)
+/* StartStatusTask function */
+void StartStatusTask(void const * argument)
 {
-  /* USER CODE BEGIN StartRefreshTask */
+  /* USER CODE BEGIN StartStatusTask */
   /* Infinite loop */
   for(;;)
   {
-		MX_MAIN_CalculateValues();
-		osDelay(250);
+		USER_MAIN_CalculateValues();
+    osDelay(333);
   }
-  /* USER CODE END StartRefreshTask */
+  /* USER CODE END StartStatusTask */
 }
 
 /* USER CODE BEGIN Application */
